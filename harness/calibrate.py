@@ -99,6 +99,9 @@ def main() -> int:
     p.add_argument("--gpu-key", required=True, help="db/gpus.json 의 키 (예: rtx5090)")
     p.add_argument("--model-key", required=True, help="db/models.json 의 키 (예: qwen3.8-27b)")
     p.add_argument("--key", default="", help="Bearer 토큰")
+    p.add_argument("--engine", default="", help="예: vllm 0.11.0 / sglang 0.4.6")
+    p.add_argument("--engine-config", default="",
+                   help="측정 당시 스케줄러 설정. 예: 'chunked-prefill on, max_num_seqs 256'")
     p.add_argument("--concurrency", default="1,2,4,8,16,32", help="디코드 스윕 지점")
     p.add_argument("--max-concurrency", type=int, default=XID79_CAP,
                    help=f"안전 상한 (기본 {XID79_CAP}; 5090 Xid 79 회피)")
@@ -167,6 +170,11 @@ def main() -> int:
     entry = {
         "measured_at": time.strftime("%Y-%m-%d"),
         "endpoint_model": cfg.model,
+        # 계수는 "이 하드웨어" 가 아니라 "이 하드웨어 + 이 엔진 설정" 에 붙는다.
+        # 설정이 다르면 같은 GPU 라도 다시 재야 한다.
+        "engine": cfg.engine or None,
+        "engine_config": cfg.engine_config or None,
+        "config_label": " · ".join(x for x in (cfg.engine, cfg.engine_config) if x) or None,
         "prefill_tok_s": round(r_prefill, 1),
         "prefill_probe_tokens": cfg.prefill_tokens,
         "decode_slope_ms_per_seq": round(slope * 1000, 4),      # = KV_seq / BW_eff
