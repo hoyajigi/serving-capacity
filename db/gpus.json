@@ -1,0 +1,16 @@
+{
+ "rtx5090": {"name": "RTX 5090 · 32GB GDDR7", "vram": 32, "bw": 1792, "tflops": 109.2,
+             "eta": 0.82, "tpeff": 0.80, "src": "measured",
+             "note": "η·TFLOPS 는 자체 roofline 실측(2026-08). P2P 없음 → TP 효율 낮음."},
+ "gb10":    {"name": "GB10 · DGX Spark 128GB", "vram": 128, "bw": 273, "tflops": 50,
+             "eta": 0.75, "tpeff": 1.00, "src": "assumed", "note": "미검증 세대 기본값."},
+ "a100":    {"name": "A100 SXM · 80GB HBM2e", "vram": 80, "bw": 2039, "tflops": 200,
+             "eta": 0.80, "tpeff": 0.92, "src": "assumed", "note": "미검증 세대 기본값."},
+ "h100":    {"name": "H100 SXM · 80GB HBM3", "vram": 80, "bw": 3350, "tflops": 600,
+             "eta": 0.80, "tpeff": 0.94, "src": "assumed", "note": "미검증 세대 기본값."},
+ "h200":    {"name": "H200 SXM · 141GB HBM3e", "vram": 141, "bw": 4800, "tflops": 650,
+             "eta": 0.80, "tpeff": 0.94, "src": "assumed", "note": "미검증 세대 기본값."},
+ "b200":    {"name": "B200 SXM · 180GB HBM3e", "vram": 180, "bw": 8000, "tflops": 1200,
+             "eta": 0.80, "tpeff": 0.95, "src": "assumed", "note": "미검증 세대 기본값."},
+ "custom":  {"name": "직접 입력", "custom": true, "src": "assumed"}
+}

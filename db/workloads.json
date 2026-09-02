@@ -1,0 +1,7 @@
+{
+ "chat": {"name": "대화형 챗", "inLen": 800, "outLen": 400, "hit": 30},
+ "rag":  {"name": "RAG · 사내 문서", "inLen": 6000, "outLen": 500, "hit": 45},
+ "code": {"name": "코딩 에이전트", "inLen": 12000, "outLen": 900, "hit": 70},
+ "sum":  {"name": "장문 요약", "inLen": 24000, "outLen": 700, "hit": 5},
+ "custom": {"name": "직접 입력", "custom": true}
+}
