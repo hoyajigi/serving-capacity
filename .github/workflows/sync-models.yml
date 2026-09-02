@@ -1,0 +1,49 @@
+name: sync models
+
+# 모델은 주 단위로 나온다. 아키텍처 필드는 HF config.json 에서 기계적으로
+# 나오므로 벤치마크 없이 갱신된다 — 사람이 개입할 일은 PR 확인뿐.
+on:
+  schedule:
+    - cron: "0 18 * * 0"      # 매주 월요일 03:00 KST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: model-atlas 체크아웃 (아키텍처 상류)
+        uses: actions/checkout@v4
+        with:
+          repository: hoyajigi/model-atlas
+          path: .model-atlas
+
+      # HF_TOKEN 은 선택 — 없으면 gated 레포(gemma, llama)만 건너뛴다.
+      - name: 아키텍처 동기화
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          MODEL_ATLAS: ${{ github.workspace }}/.model-atlas
+        run: |
+          python3 tools/sync_models.py
+          python3 tools/build.py
+
+      - uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/sync-models
+          title: "chore: 모델 아키텍처 동기화"
+          commit-message: "chore: HF config.json 에서 모델 아키텍처 재동기화"
+          body: |
+            `tools/sync_models.py` 자동 실행 결과입니다.
+
+            확인할 것:
+            - 새 모델의 `attn` 판정이 맞는지 (특히 `mla` / `hybrid` / `swa`)
+            - `OVERRIDES` 로 보정해야 할 항목이 새로 생겼는지
+            - 실패 목록에 gated 레포 외의 것이 있는지
+          delete-branch: true

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json, os, re, sys, tomllib, urllib.error, urllib.request
 from pathlib import Path
 
-ATLAS = Path.home() / "personal" / "model-atlas" / "data" / "models"
+ATLAS = Path(os.environ.get("MODEL_ATLAS", Path.home() / "personal" / "model-atlas")) / "data" / "models"
 OUT = Path(__file__).resolve().parent.parent / "db" / "models.json"
 HF = "https://huggingface.co/{}/resolve/main/config.json"
 SKIP_MODALITY = {"text-to-image", "image", "audio"}
@@ -90,8 +90,15 @@ def active_params(entry: dict, hf_id: str, total: float) -> float:
 
 
 def main() -> int:
+    if not ATLAS.is_dir():
+        print(f"model-atlas 를 찾을 수 없습니다: {ATLAS}\n"
+              f"MODEL_ATLAS 환경변수로 레포 위치를 지정하세요.", file=sys.stderr)
+        return 1
     out, failed = {}, []
     files = sorted(ATLAS.glob("*/*.toml"))
+    if not files:
+        print(f"{ATLAS} 에 모델 항목이 없습니다.", file=sys.stderr)
+        return 1
     for f in files:
         e = tomllib.load(f.open("rb"))
         hf_id, mod = e.get("hf_id"), e.get("modality", "")

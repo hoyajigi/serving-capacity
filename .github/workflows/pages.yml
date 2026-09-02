@@ -1,0 +1,48 @@
+name: build & deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      # 빌드는 커밋된 db/*.json 과 assets/fonts.css 만 쓴다 — 네트워크 불필요.
+      # 외부 참조가 하나라도 남으면 build.py 가 0 이 아닌 코드로 죽고 배포가 막힌다.
+      - name: 계산기 빌드 (에어갭 검증 포함)
+        run: python3 tools/build.py
+
+      - name: 배포본 구성
+        run: |
+          mkdir -p _site
+          cp capacity-calc.html _site/index.html
+          cp capacity-calc.html _site/capacity-calc.html
+          cp db/coefficients.json _site/coefficients.json
+
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

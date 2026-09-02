@@ -1,5 +1,7 @@
 # serving-capacity
 
+**→ https://hoyajigi.github.io/serving-capacity/**
+
 고객사 앞에서 **"동시 몇 명, 몇 tok/s 나옵니까"** 에 근거를 대고 답하기 위한 도구.
 
 SLO(TTFT p95 · 사용자당 출력 속도)를 고정한 상태에서 주어진 GPU 구성이 버티는
@@ -19,13 +21,25 @@ assets/fonts.css            IBM Plex 9개 페이스 base64 (latin 서브셋)
 tools/sync_models.py        model-atlas + HF → db/models.json
 tools/build.py              템플릿 + DB + 폰트 → capacity-calc.html
 harness/calibrate.py        실측 계수 추출 (vLLM/SGLang OpenAI 엔드포인트)
+.github/workflows/
+  pages.yml                   main 푸시마다 빌드→Pages 배포 (에어갭 검증이 게이트)
+  sync-models.yml             매주 월요일 03:00 KST 아키텍처 재동기화 → PR
 ```
 
 ## 쓰는 법
 
+브라우저에서 그냥 열면 된다. 오프라인으로 쓸 거면 페이지를 한 번 받아두면 끝이다 —
+외부 요청이 0건이라 저장된 HTML 하나가 온전한 도구다.
+
+```bash
+curl -O https://hoyajigi.github.io/serving-capacity/capacity-calc.html
+open capacity-calc.html         # 서버도 네트워크도 필요 없음
+```
+
+레포에서 직접 빌드할 때:
+
 ```bash
 python3 tools/build.py          # 계산기 빌드 (외부 참조 남으면 실패시킴)
-open capacity-calc.html         # 끝. 서버도 네트워크도 필요 없음
 ```
 
 모델이 새로 나왔을 때:
@@ -106,3 +120,14 @@ GQA 공식을 쓰면 KV 를 **5.1배 과대추정**한다 (12,545 MB → 실제 
 만들면 그게 먼저 썩는다. atlas 가 HF Hub 에서 모델 목록을 동기화하고,
 `sync_models.py` 가 각 `hf_id` 의 `config.json` 을 읽어 아키텍처 필드를 채운다.
 이 층은 **벤치마크가 전혀 필요 없다** — 가장 자주 바뀌는 층이 가장 싸게 갱신된다.
+
+## 자동화
+
+- `pages.yml` — main 에 푸시하면 빌드해서 Pages 에 올린다. `build.py` 의 외부 참조
+  검사가 실패하면 배포가 막히므로, 에어갭 조건이 CI 게이트로 강제된다.
+- `sync-models.yml` — 매주 model-atlas + HF config.json 을 다시 읽어 PR 을 연다.
+  gated 레포(gemma, llama)까지 받으려면 저장소 시크릿에 `HF_TOKEN` 을 추가한다.
+  없어도 나머지는 정상 동기화된다.
+
+PR 에서 확인할 것은 하나다 — **새 모델의 `attn` 판정이 맞는지.** 숫자가 아니라
+분류가 틀리는 게 이 도구의 유일한 치명적 오류다.

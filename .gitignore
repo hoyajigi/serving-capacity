@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+_site/
+.model-atlas/
