@@ -232,9 +232,13 @@ tr.hi td { background: var(--accent-wash); }
       </section>
 
       <section class="grp">
-        <h2>조직 사이징</h2>
-        <div class="row"><label>전체 인원</label><input type="number" id="org" value="500" min="1" step="10"></div>
-        <div class="row"><label>피크 동시 사용률 <span class="u">%</span></label><input type="number" id="peak" value="5" min="0.1" max="100" step="0.1"></div>
+        <h2>수요 <span class="hint">인원 → 장비</span></h2>
+        <div class="row"><label>코딩 에이전트 <span class="u">명</span></label><input type="number" id="uCode" value="80" min="0" step="10"></div>
+        <div class="row"><label><span class="u">└ 피크 동시율 %</span></label><input type="number" id="cCode" value="25" min="0.1" max="100" step="0.5"></div>
+        <div class="row"><label>일반 챗 <span class="u">명</span></label><input type="number" id="uChat" value="400" min="0" step="10"></div>
+        <div class="row"><label><span class="u">└ 피크 동시율 %</span></label><input type="number" id="cChat" value="5" min="0.1" max="100" step="0.5"></div>
+        <div class="row"><label>RAG · 사내문서 <span class="u">명</span></label><input type="number" id="uRag" value="120" min="0" step="10"></div>
+        <div class="row"><label><span class="u">└ 피크 동시율 %</span></label><input type="number" id="cRag" value="8" min="0.1" max="100" step="0.5"></div>
       </section>
     </div>
 
@@ -276,8 +280,9 @@ tr.hi td { background: var(--accent-wash); }
       </section>
 
       <section class="panel">
-        <h2>역방향 사이징</h2>
+        <h2>몇 대 사야 하나 <span class="sub">용도별로 따로 계산해 부하를 합산</span></h2>
         <div class="tbl-wrap"><table id="sizeTbl"></table></div>
+        <p class="vnote" id="sizeNote" style="margin-top:12px;border-top:0;padding-top:0"></p>
       </section>
 
       <div class="foot">
@@ -339,7 +344,7 @@ function readModel() {
 }
 
 /* ===== 용량 모델 ===== */
-function compute() {
+function compute(ovr) {
   const gpus = Math.max(1, num("gpus"));
   const pd = $("deploy").value === "pd";
   // PD 분리: 두 풀이 각각 가중치를 들고, 프리필이 디코드 시간을 훔치지 않는다.
@@ -356,7 +361,9 @@ function compute() {
   // KV 는 디코드 풀에만 쌓인다
   const kvPool = gDec * num("vram") * 1e9 * num("util") - wBytes - gDec * ACT_OVERHEAD_GB * 1e9;
   const preFits = gPre * num("vram") * 1e9 * num("util") - wBytes - gPre * ACT_OVERHEAD_GB * 1e9;
-  const inLen = num("inLen"), outLen = num("outLen"), hit = num("hit") / 100;
+  const w = ovr || {};
+  const inLen = w.inLen ?? num("inLen"), outLen = w.outLen ?? num("outLen"),
+        hit = (w.hit ?? num("hit")) / 100;
   const ctxPeak = inLen + outLen, ctxAvg = inLen + outLen / 2;
 
   const kvPeak = kvBytesPerSeq(m, ctxPeak, dt), kvAvg = kvBytesPerSeq(m, ctxAvg, dt);
@@ -562,14 +569,44 @@ function render() {
       }).join("") + `</tbody>`;
   } else $("sweepTbl").innerHTML = "";
 
-  // ---- 역방향 사이징
-  const need = num("org") * num("peak") / 100, per = knee ? knee.N : 0;
-  const reps = per > 0 ? Math.ceil(need / per) : null;
-  $("sizeTbl").innerHTML = `<thead><tr><th>항목</th><th>값</th><th>근거</th></tr></thead><tbody>` +
-    `<tr><td>피크 동시 요청</td><td><b>${fmt(need, 1)}</b></td><td style="text-align:left">${fmt(num("org"))}명 × ${fmt(num("peak"), 1)}%</td></tr>` +
-    `<tr><td>레플리카당 수용</td><td><b>${per ? fmt(per) : "–"}</b></td><td style="text-align:left">GPU ${fmt(r.gpus)}장 1세트 기준 한계점</td></tr>` +
-    `<tr class="hi"><td>필요 GPU</td><td><b>${reps ? fmt(reps * r.gpus) + " 장" : "불가"}</b></td><td style="text-align:left">${reps ? `레플리카 ${reps}세트 × ${fmt(r.gpus)}장` : "현재 구성으로 SLO 충족 불가"}</td></tr>` +
-    `<tr><td>피크 시 총 처리량</td><td><b>${reps ? fmt(reps * knee.sys) + " tok/s" : "–"}</b></td><td style="text-align:left">레플리카 처리량 × 세트 수</td></tr></tbody>`;
+  // ---- 수요 → 장비. 용도별로 따로 계산해 부하를 더한다.
+  //      길이 분포가 다른 워크로드를 하나로 뭉개면 코딩 에이전트가 챗에 묻힌다.
+  const CLASSES = [["code", "코딩 에이전트", "uCode", "cCode"],
+                   ["chat", "일반 챗", "uChat", "cChat"],
+                   ["rag", "RAG · 사내문서", "uRag", "cRag"]];
+  let loadSum = 0, sysSum = 0, anyFail = false;
+  const rows = CLASSES.map(([k, label, uid, cid]) => {
+    const users = num(uid), rate = num(cid) / 100;
+    const need = users * rate;
+    const rc = compute(WORKLOADS[k]);
+    const cap = rc.knee ? rc.knee.N : 0;
+    const load = cap > 0 ? need / cap : (need > 0 ? Infinity : 0);
+    if (!isFinite(load)) anyFail = true;
+    loadSum += isFinite(load) ? load : 0;
+    if (isFinite(load)) sysSum += load * (rc.knee ? rc.knee.sys : 0);
+    return { label, users, need, cap, load,
+             why: cap > 0 ? { bw: "대역폭", prefill: "프리필", kv: "KV 용량" }[rc.bind]
+                          : "SLO 충족 불가" };
+  });
+  const reps = Math.ceil(loadSum - 1e-9) || (loadSum > 0 ? 1 : 0);
+  const totalUsers = rows.reduce((a, r) => a + r.users, 0);
+
+  $("sizeTbl").innerHTML =
+    `<thead><tr><th>용도</th><th>인원</th><th>피크 동시</th><th>세트당 수용</th><th>부하</th><th>병목</th></tr></thead><tbody>` +
+    rows.map(r => `<tr><td>${r.label}</td><td>${fmt(r.users)}</td><td>${fmt(r.need, 1)}</td>` +
+      `<td>${r.cap ? fmt(r.cap) : "–"}</td>` +
+      `<td${isFinite(r.load) ? "" : ' style="color:var(--crit)"'}><b>${isFinite(r.load) ? fmt(r.load, 2) : "불가"}</b></td>` +
+      `<td style="text-align:left">${r.why}</td></tr>`).join("") +
+    `<tr class="hi"><td><b>필요 장비</b></td><td>${fmt(totalUsers)}</td>` +
+    `<td>${fmt(rows.reduce((a, r) => a + r.need, 0), 1)}</td><td>–</td>` +
+    `<td><b>${fmt(loadSum, 2)}</b></td>` +
+    `<td style="text-align:left"><b>${anyFail ? "현재 구성으로 불가"
+        : reps ? `${(GPUS[$("gpu").value]?.name || "GPU").split(" · ")[0]} ${fmt(reps * r.gpus)}장 (${reps}세트 × ${fmt(r.gpus)}장)` : "0장"}</b></td></tr>` +
+    `</tbody>`;
+  $("sizeNote").innerHTML = anyFail
+    ? `한 용도 이상이 <b>세트 하나로도 SLO를 못 맞춥니다.</b> 위 「병목 판정」에서 원인을 보고 모델·양자화·SLO 중 하나를 조정하세요.`
+    : `부하 합 <b>${fmt(loadSum, 2)}</b> → <b>${fmt(reps)}세트</b>. 피크 시 총 처리량 약 ${fmt(sysSum)} tok/s. ` +
+      `용도별로 입출력 길이가 달라 따로 계산한 뒤 더했습니다 — 하나로 뭉개면 코딩 에이전트 부하가 챗에 묻힙니다.`;
 }
 
 function setReadout(p) {
@@ -674,7 +711,8 @@ $("attn").addEventListener("change", () => { $("model").value = "custom"; render
 $("deploy").addEventListener("change", render);
 for (const id of ["gpus", "vram", "bw", "eta", "tflops", "tpeff", "util", "pTot", "pAct", "layers", "kvh",
                   "hdim", "win", "ge", "lora", "rope", "quant", "kvq", "inLen", "outLen", "ttftSlo", "tpsSlo",
-                  "org", "peak", "pg", "spec", "draft"]) {
+                  "pg", "spec", "draft",
+                  "uCode", "cCode", "uChat", "cChat", "uRag", "cRag"]) {
   $(id).addEventListener("input", () => {
     if (["vram", "bw", "eta", "tflops", "tpeff"].includes(id)) $("gpu").value = "custom";
     if (["pTot", "pAct", "layers", "kvh", "hdim", "win", "ge", "lora", "rope"].includes(id)) $("model").value = "custom";
