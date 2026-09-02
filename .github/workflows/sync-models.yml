@@ -25,7 +25,8 @@ jobs:
           repository: hoyajigi/model-atlas
           path: .model-atlas
 
-      # HF_TOKEN 은 선택 — 없으면 gated 레포(gemma, llama)만 건너뛴다.
+      # HF_TOKEN 은 선택 — 없으면 gated 레포는 이전에 받아둔 값을 보존하고
+      # stale 표시만 붙는다. 토큰이 없어도 DB 가 줄어들지 않는다.
       - name: 아키텍처 동기화
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -45,5 +46,6 @@ jobs:
             확인할 것:
             - 새 모델의 `attn` 판정이 맞는지 (특히 `mla` / `hybrid` / `swa`)
             - `OVERRIDES` 로 보정해야 할 항목이 새로 생겼는지
-            - 실패 목록에 gated 레포 외의 것이 있는지
+            - `stale_reason` 이 붙은 항목이 늘었는지 (gated 는 정상, 그 외는 확인 필요)
+            - `삭제` 로 보고된 모델이 정말 model-atlas 에서 빠진 게 맞는지
           delete-branch: true

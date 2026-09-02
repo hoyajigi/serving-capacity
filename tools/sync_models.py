@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 import json, os, re, sys, tomllib, urllib.error, urllib.request
+from datetime import date
 from pathlib import Path
 
 ATLAS = Path(os.environ.get("MODEL_ATLAS", Path.home() / "personal" / "model-atlas")) / "data" / "models"
@@ -94,29 +95,43 @@ def main() -> int:
         print(f"model-atlas 를 찾을 수 없습니다: {ATLAS}\n"
               f"MODEL_ATLAS 환경변수로 레포 위치를 지정하세요.", file=sys.stderr)
         return 1
-    out, failed = {}, []
     files = sorted(ATLAS.glob("*/*.toml"))
     if not files:
         print(f"{ATLAS} 에 모델 항목이 없습니다.", file=sys.stderr)
         return 1
+
+    # 이전 결과를 보존한다. 한 번 받아둔 항목을 fetch 실패로 지워버리면
+    # 토큰이 없는 CI 가 gated 모델을 조용히 삭제하는 회귀 PR 을 연다.
+    prev = json.loads(OUT.read_text(encoding="utf-8")) if OUT.exists() else {}
+    today = date.today().isoformat()
+    out, fresh, kept, dropped = {}, 0, [], []
+
     for f in files:
         e = tomllib.load(f.open("rb"))
         hf_id, mod = e.get("hf_id"), e.get("modality", "")
         if not hf_id or mod in SKIP_MODALITY:
             continue
+        mid, why = e["id"], None
         try:
             arch = apply_override(hf_id, classify(text_cfg(fetch_config(hf_id))))
+            if not all(arch.get(k) for k in ("layers", "head_dim", "kv_heads")):
+                why = "config 필드 부족"
         except urllib.error.HTTPError as err:
-            failed.append((hf_id, f"HTTP {err.code}" + (" (gated)" if err.code in (401, 403) else "")))
-            continue
+            why = f"HTTP {err.code}" + (" (gated — HF_TOKEN 필요)" if err.code in (401, 403) else "")
         except Exception as err:                                  # noqa: BLE001
-            failed.append((hf_id, type(err).__name__))
+            why = type(err).__name__
+
+        if why:
+            if mid in prev:                       # 보존 — 낡았다는 표시만 남긴다
+                out[mid] = {**prev[mid], "stale_since": prev[mid].get("stale_since", today),
+                            "stale_reason": why}
+                kept.append((hf_id, why))
+            else:
+                dropped.append((hf_id, why))
             continue
-        if not all(arch.get(k) for k in ("layers", "head_dim", "kv_heads")):
-            failed.append((hf_id, "config 필드 부족"))
-            continue
+
         total = (e.get("params") or 0) / 1e9
-        out[e["id"]] = {
+        out[mid] = {
             "name": f"{e['name']} ({e.get('org','?')})",
             "hf_id": hf_id,
             "pTot": round(total, 2),
@@ -125,15 +140,24 @@ def main() -> int:
             "src_as_of": e.get("source", {}).get("as_of"),
             **arch,
         }
+        fresh += 1
         print(f"  ok  {hf_id:52s} {arch['attn']:7s} L{arch['layers']}", file=sys.stderr)
 
+    gone = sorted(set(prev) - set(out))            # atlas 에서 빠진 모델만 실제로 삭제
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(out, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
-    print(f"\n{len(out)}개 기록 -> {OUT}", file=sys.stderr)
-    if failed:
-        print(f"실패 {len(failed)}건:", file=sys.stderr)
-        for h, why in failed:
-            print(f"  -- {h:52s} {why}", file=sys.stderr)
+
+    print(f"\n{len(out)}개 기록 -> {OUT}  (신규·갱신 {fresh} · 보존 {len(kept)})", file=sys.stderr)
+    if kept:
+        print("보존 — 이번에 못 받았지만 이전 값을 유지합니다:", file=sys.stderr)
+        for h, w in kept:
+            print(f"  ~~ {h:52s} {w}", file=sys.stderr)
+    if dropped:
+        print("누락 — 받은 적이 없어 기록하지 못했습니다:", file=sys.stderr)
+        for h, w in dropped:
+            print(f"  -- {h:52s} {w}", file=sys.stderr)
+    if gone:
+        print(f"삭제 — model-atlas 에서 빠진 모델: {', '.join(gone)}", file=sys.stderr)
     return 0
 
 

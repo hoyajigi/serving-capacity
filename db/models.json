@@ -120,6 +120,8 @@
   "pAct": 12.19,
   "pTot": 12.19,
   "src_as_of": "2026-08-22",
+  "stale_reason": "HTTP 401 (gated — HF_TOKEN 필요)",
+  "stale_since": "2026-09-02",
   "window": 1024
  },
  "gemma-3-27b-it": {
@@ -135,6 +137,8 @@
   "pAct": 27.43,
   "pTot": 27.43,
   "src_as_of": "2026-08-22",
+  "stale_reason": "HTTP 401 (gated — HF_TOKEN 필요)",
+  "stale_since": "2026-09-02",
   "window": 1024
  },
  "glm-4.5": {
@@ -263,7 +267,9 @@
   "name": "Llama-3.1-8B-Instruct (meta)",
   "pAct": 8.03,
   "pTot": 8.03,
-  "src_as_of": "2026-08-22"
+  "src_as_of": "2026-08-22",
+  "stale_reason": "HTTP 401 (gated — HF_TOKEN 필요)",
+  "stale_since": "2026-09-02"
  },
  "llama-4-maverick": {
   "attn": "gqa",
@@ -275,7 +281,9 @@
   "name": "Llama-4-Maverick-17B-128E-Instruct (meta)",
   "pAct": 17.0,
   "pTot": 401.58,
-  "src_as_of": "2026-08-22"
+  "src_as_of": "2026-08-22",
+  "stale_reason": "HTTP 401 (gated — HF_TOKEN 필요)",
+  "stale_since": "2026-09-02"
  },
  "llama-4-scout": {
   "attn": "gqa",
@@ -287,7 +295,9 @@
   "name": "Llama-4-Scout-17B-16E-Instruct (meta)",
   "pAct": 17.0,
   "pTot": 108.64,
-  "src_as_of": "2026-08-22"
+  "src_as_of": "2026-08-22",
+  "stale_reason": "HTTP 401 (gated — HF_TOKEN 필요)",
+  "stale_since": "2026-09-02"
  },
  "magistral-small-2506": {
   "attn": "gqa",

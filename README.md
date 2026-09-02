@@ -45,7 +45,7 @@ python3 tools/build.py          # 계산기 빌드 (외부 참조 남으면 실�
 모델이 새로 나왔을 때:
 
 ```bash
-python3 tools/sync_models.py    # HF config.json 파싱 (gated 레포는 HF_TOKEN 필요)
+python3 tools/sync_models.py    # HF config.json 파싱 (실패한 항목은 이전 값 보존)
 python3 tools/build.py
 ```
 
@@ -126,8 +126,10 @@ GQA 공식을 쓰면 KV 를 **5.1배 과대추정**한다 (12,545 MB → 실제 
 - `pages.yml` — main 에 푸시하면 빌드해서 Pages 에 올린다. `build.py` 의 외부 참조
   검사가 실패하면 배포가 막히므로, 에어갭 조건이 CI 게이트로 강제된다.
 - `sync-models.yml` — 매주 model-atlas + HF config.json 을 다시 읽어 PR 을 연다.
-  gated 레포(gemma, llama)까지 받으려면 저장소 시크릿에 `HF_TOKEN` 을 추가한다.
-  없어도 나머지는 정상 동기화된다.
+  **`HF_TOKEN` 은 필요 없다.** gated 레포(gemma, llama)를 못 받으면 이전에 받아둔
+  값을 보존하고 `stale_reason` 만 붙인다. 실제로 삭제되는 건 model-atlas 에서
+  빠진 모델뿐이다. 토큰을 넣으면 gated 모델도 매주 최신화되는 것뿐, 없다고 DB 가
+  줄어들지 않는다.
 
 PR 에서 확인할 것은 하나다 — **새 모델의 `attn` 판정이 맞는지.** 숫자가 아니라
 분류가 틀리는 게 이 도구의 유일한 치명적 오류다.

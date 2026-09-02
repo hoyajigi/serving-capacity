@@ -461,6 +461,7 @@ function render() {
   let reason = "";
   if (!attnOk) { g = "C"; reason = "미지원 어텐션 구조 — KV 공식이 맞지 않을 수 있습니다."; }
   if (mdl.note) reason = mdl.note;
+  if (mdl.stale_reason) reason = `이 모델 항목은 ${mdl.stale_since} 이후 갱신되지 않았습니다 (${mdl.stale_reason}). 이전에 받아둔 config 값을 그대로 씁니다.`;
   const gm = {
     A: ["A · 실측", "이 장비+모델 캘리브레이션 적용", "var(--good)",
         '<path d="M2 6.5l3 3 5-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'],
@@ -473,7 +474,9 @@ function render() {
   $("grade").innerHTML = `<svg viewBox="0 0 12 12" aria-hidden="true">${gm[3]}</svg>${gm[0]}<span class="sub">${gm[1]}</span>`;
   if (reason) $("note").innerHTML += `<span class="warnline">주의 — ${reason}</span>`;
   $("etaSrc").innerHTML = gsrc === "measured" ? '<span class="est meas">실측 η</span>' : '<span class="est">추정</span>';
-  $("modelSrc").innerHTML = mdl.hf_id ? `<span class="est meas">config ${mdl.src_as_of || ""}</span>` : '<span class="est">템플릿</span>';
+  $("modelSrc").innerHTML = !mdl.hf_id ? '<span class="est">템플릿</span>'
+    : mdl.stale_reason ? `<span class="est">보존 ${mdl.stale_since || ""}</span>`
+    : `<span class="est meas">config ${mdl.src_as_of || ""}</span>`;
 
   // ---- 병목 판정
   const kvTokEff = r.kvPeak / r.ctxPeak;
