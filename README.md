@@ -116,7 +116,7 @@ GQA 공식을 쓰면 KV 를 **5.1배 과대추정**한다 (12,545 MB → 실제 
 
 ## 상류
 
-모델 아키텍처는 [`model-atlas`](../model-atlas) 를 상류로 쓴다. 두 번째 모델 DB를
+모델 아키텍처는 [`model-atlas`](https://github.com/hoyajigi/model-atlas) 를 상류로 쓴다. 두 번째 모델 DB를
 만들면 그게 먼저 썩는다. atlas 가 HF Hub 에서 모델 목록을 동기화하고,
 `sync_models.py` 가 각 `hf_id` 의 `config.json` 을 읽어 아키텍처 필드를 채운다.
 이 층은 **벤치마크가 전혀 필요 없다** — 가장 자주 바뀌는 층이 가장 싸게 갱신된다.
